@@ -428,8 +428,9 @@ const S = {
   ts:{}, totalBreakMs:0, log:[]
 };
 
-const rosterImgs  = [null,null,null];
-const rosterNames = ['This week','Next week','Week after'];
+const rosterImgs     = [null,null,null];
+const rosterNames    = ['This week','Next week','Week after'];
+const rosterDriveUrls = {}; // persisted Drive URLs fetched on load
 let pinEntry='', curUploadSlot=0;
 let calYear, calMonth;
 const selDates = new Set();
@@ -680,7 +681,40 @@ function setSyncBadge(id,state,text){const el=document.getElementById(id);if(!el
 function refreshRosterView(){rosterImgs.forEach((src,i)=>{const wrap=document.getElementById('r'+i),empty=document.getElementById('r'+i+'-empty');if(src){empty.style.display='none';let img=wrap.querySelector('img');if(!img){img=document.createElement('img');img.alt=rosterNames[i];wrap.appendChild(img);}img.src=src;}else{empty.style.display='flex';const img=wrap.querySelector('img');if(img)img.remove();}});}
 function openLightbox(i){if(!rosterImgs[i])return;document.getElementById('lb-title').textContent=rosterNames[i];document.getElementById('lb-img').src=rosterImgs[i];show('view-lightbox');}
 function triggerUpload(slot){curUploadSlot=slot;document.getElementById('file-input').click();}
-function handleUpload(e){const file=e.target.files[0];if(!file)return;const reader=new FileReader();reader.onload=ev=>{rosterImgs[curUploadSlot]=ev.target.result;refreshRosterView();refreshThumbs();showBanner('upload-banner');setTimeout(()=>document.getElementById('upload-banner').classList.remove('show'),3000);const slotLabel=rosterNames[curUploadSlot];const now=new Date();postToSheet({type:'roster',slot:slotLabel,weekLabel:'W/C '+now.toLocaleDateString('en-AU',{day:'numeric',month:'short',year:'numeric'}),filename:file.name,uploadedAt:now.toISOString(),uploadedBy:'Manager'}).catch(()=>{});};reader.readAsDataURL(file);e.target.value='';}
+function handleUpload(e){
+  const file=e.target.files[0]; if(!file)return;
+  const reader=new FileReader();
+  reader.onload=ev=>{
+    const dataUrl=ev.target.result;
+    // Show immediately in local UI
+    rosterImgs[curUploadSlot]=dataUrl;
+    refreshRosterView(); refreshThumbs();
+    showBanner('upload-banner');
+    setTimeout(()=>document.getElementById('upload-banner').classList.remove('show'),3000);
+
+    // Strip the data:image/...;base64, prefix for Drive upload
+    const base64=dataUrl.split(',')[1];
+    const mimeType=dataUrl.split(';')[0].split(':')[1];
+    const slotLabel=rosterNames[curUploadSlot];
+    const now=new Date();
+
+    postToSheet({
+      type:'roster',
+      slot:slotLabel,
+      weekLabel:'W/C '+now.toLocaleDateString('en-AU',{day:'numeric',month:'short',year:'numeric'}),
+      filename:file.name,
+      uploadedAt:now.toISOString(),
+      uploadedBy:'Manager',
+      imageBase64:base64,
+      mimeType:mimeType,
+    }).then(res=>{
+      // Store the Drive URL so other devices can load it
+      if(res.url) rosterDriveUrls[slotLabel]=res.url;
+    }).catch(()=>{});
+  };
+  reader.readAsDataURL(file);
+  e.target.value='';
+}
 function refreshThumbs(){rosterImgs.forEach((src,i)=>{const thumb=document.getElementById('th'+i),sub=document.getElementById('th'+i+'-sub');if(src){thumb.innerHTML='';const img=document.createElement('img');img.src=src;img.alt=rosterNames[i];thumb.appendChild(img);sub.textContent='Tap to replace';}else{thumb.innerHTML='📷';sub.textContent='No image uploaded';}});}
 
 // ── PIN ────────────────────────────────────────
@@ -707,7 +741,33 @@ function prevMonth(){calMonth===0?(calMonth=11,calYear--):calMonth--;renderCal()
 function nextMonth(){calMonth===11?(calMonth=0,calYear++):calMonth++;renderCal();}
 
 initCal();
+fetchRosterURLs();
 init();
+
+// Fetch current roster images from Drive via Apps Script on page load
+function fetchRosterURLs() {
+  fetch(APPS_SCRIPT_URL, {
+    method:'POST',
+    headers:{'Content-Type':'text/plain'},
+    body:JSON.stringify({type:'getRosters'})
+  })
+  .then(r=>r.json())
+  .then(data=>{
+    if(!data.success || !data.urls) return;
+    rosterNames.forEach((name,i)=>{
+      const url=data.urls[name];
+      if(url){
+        rosterDriveUrls[name]=url;
+        // Load image from Drive into local display
+        const img=new Image();
+        img.crossOrigin='anonymous';
+        img.onload=()=>{ rosterImgs[i]=url; refreshRosterView(); refreshThumbs(); };
+        img.src=url;
+      }
+    });
+  })
+  .catch(()=>{}); // silent fail — rosters just show empty
+}
 </script>
 </body>
 </html>
