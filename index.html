@@ -678,7 +678,23 @@ function showBanner(id){document.getElementById(id).classList.add('show');}
 function setSyncBadge(id,state,text){const el=document.getElementById(id);if(!el)return;el.innerHTML=`<div class="sync-badge ${state}">${text}</div>`;}
 
 // ── Roster ─────────────────────────────────────
-function refreshRosterView(){rosterImgs.forEach((src,i)=>{const wrap=document.getElementById('r'+i),empty=document.getElementById('r'+i+'-empty');if(src){empty.style.display='none';let img=wrap.querySelector('img');if(!img){img=document.createElement('img');img.alt=rosterNames[i];wrap.appendChild(img);}img.src=src;}else{empty.style.display='flex';const img=wrap.querySelector('img');if(img)img.remove();}});}
+function refreshRosterView(){
+  rosterNames.forEach((name,i)=>{
+    const src=rosterImgs[i]||rosterDriveUrls[name]||null;
+    const wrap=document.getElementById('r'+i);
+    const empty=document.getElementById('r'+i+'-empty');
+    if(src){
+      empty.style.display='none';
+      let img=wrap.querySelector('img');
+      if(!img){img=document.createElement('img');img.alt=name;wrap.appendChild(img);}
+      img.src=src;
+    } else {
+      empty.style.display='flex';
+      const img=wrap.querySelector('img');
+      if(img)img.remove();
+    }
+  });
+}
 function openLightbox(i){if(!rosterImgs[i])return;document.getElementById('lb-title').textContent=rosterNames[i];document.getElementById('lb-img').src=rosterImgs[i];show('view-lightbox');}
 function triggerUpload(slot){curUploadSlot=slot;document.getElementById('file-input').click();}
 function handleUpload(e){
@@ -715,7 +731,23 @@ function handleUpload(e){
   reader.readAsDataURL(file);
   e.target.value='';
 }
-function refreshThumbs(){rosterImgs.forEach((src,i)=>{const thumb=document.getElementById('th'+i),sub=document.getElementById('th'+i+'-sub');if(src){thumb.innerHTML='';const img=document.createElement('img');img.src=src;img.alt=rosterNames[i];thumb.appendChild(img);sub.textContent='Tap to replace';}else{thumb.innerHTML='📷';sub.textContent='No image uploaded';}});}
+function refreshThumbs(){
+  rosterNames.forEach((name,i)=>{
+    const src=rosterImgs[i]||rosterDriveUrls[name]||null;
+    const thumb=document.getElementById('th'+i);
+    const sub=document.getElementById('th'+i+'-sub');
+    if(src){
+      thumb.innerHTML='';
+      const img=document.createElement('img');
+      img.src=src; img.alt=name;
+      thumb.appendChild(img);
+      sub.textContent='Tap to replace';
+    } else {
+      thumb.innerHTML='📷';
+      sub.textContent='No image uploaded';
+    }
+  });
+}
 
 // ── PIN ────────────────────────────────────────
 function pinKey(k){if(pinEntry.length>=4)return;pinEntry+=k;updatePinDots();if(pinEntry.length===4)setTimeout(checkPin,120);}
@@ -758,10 +790,11 @@ function fetchRosterURLs() {
       const dataUrl=data.images[name];
       if(dataUrl){
         rosterImgs[i]=dataUrl;
-        refreshRosterView();
-        refreshThumbs();
+        rosterDriveUrls[name]=dataUrl;
       }
     });
+    refreshRosterView();
+    refreshThumbs();
   })
   .catch(()=>{}); // silent fail — rosters just show empty
 }
