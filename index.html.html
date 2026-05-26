@@ -1,0 +1,817 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>Staff Timebook</title>
+
+<!-- ── CONFIGURATION ─────────────────────────
+  Replace the value below with your deployed
+  Apps Script Web App URL after publishing.
+──────────────────────────────────────────── -->
+<script>
+  const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxOIR5ivNs37HhuiXw2aPdLAim_Bk2f3Ln0uSTsopHSyf_fPNGM_Ck0o5O980nqD888CA/exec';
+  const ADMIN_PIN = '1234'; // Change before going live
+</script>
+
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg:      #ffffff;
+    --bg2:     #f5f4f0;
+    --bg3:     #eeede8;
+    --text:    #1a1a18;
+    --text2:   #6b6a64;
+    --text3:   #9c9a92;
+    --border:  rgba(0,0,0,0.12);
+    --border2: rgba(0,0,0,0.22);
+    --radius:  10px;
+    --radius-lg: 14px;
+    --green-bg: #EAF3DE; --green-bd: #97C459; --green-tx: #3B6D11;
+    --amber-bg: #FAEEDA; --amber-bd: #EF9F27; --amber-tx: #854F0B;
+    --red-bg:   #FAECE7; --red-bd:   #F0997B; --red-tx:   #993C1D;
+    --blue-bg:  #E6F1FB; --blue-bd:  #85B7EB; --blue-tx:  #185FA5;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg:     #1c1c1a; --bg2: #252523; --bg3: #2e2e2b;
+      --text:   #e8e6de; --text2: #9c9a92; --text3: #6b6a64;
+      --border: rgba(255,255,255,0.1); --border2: rgba(255,255,255,0.2);
+      --green-bg: #1a2e0d; --green-bd: #639922; --green-tx: #C0DD97;
+      --amber-bg: #2a1e06; --amber-bd: #BA7517; --amber-tx: #FAC775;
+      --red-bg:   #2a1008; --red-bd:   #993C1D; --red-tx:   #F5C4B3;
+      --blue-bg:  #081e35; --blue-bd:  #185FA5; --blue-tx:  #B5D4F4;
+    }
+  }
+
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    background: var(--bg3);
+    color: var(--text);
+    min-height: 100vh;
+  }
+
+  .app { max-width: 420px; margin: 0 auto; padding: 1rem 1rem 4rem; }
+
+  /* ── Top bar ── */
+  .top-bar { display: flex; align-items: center; justify-content: space-between; margin-bottom: 1.25rem; }
+  .logo { font-size: 11px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--text3); }
+  .roster-btn { display: flex; align-items: center; gap: 6px; font-size: 12.5px; padding: 7px 12px; border-radius: var(--radius); border: 1px solid var(--border2); background: var(--bg); color: var(--text); cursor: pointer; font-family: inherit; }
+  .roster-btn:hover { background: var(--bg2); }
+
+  /* ── Clock ── */
+  .header { text-align: center; margin-bottom: 1.25rem; }
+  .time-display { font-size: 38px; font-weight: 500; letter-spacing: -1px; font-variant-numeric: tabular-nums; }
+  .date-display { font-size: 13px; color: var(--text2); margin-top: 2px; }
+
+  /* ── Card ── */
+  .card { background: var(--bg); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: 1.25rem; margin-bottom: 12px; }
+
+  /* ── Section label ── */
+  .slabel { font-size: 10.5px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--text3); margin-bottom: 8px; }
+
+  /* ── Select ── */
+  .sel-wrap { position: relative; }
+  .sel-wrap select { width: 100%; padding: 10px 36px 10px 12px; font-size: 15px; font-family: inherit; background: var(--bg2); border: 1px solid var(--border2); border-radius: var(--radius); color: var(--text); appearance: none; cursor: pointer; }
+  .sel-wrap select:disabled { opacity: 0.5; cursor: default; }
+  .sel-wrap .chev { position: absolute; right: 10px; top: 50%; transform: translateY(-50%); pointer-events: none; color: var(--text2); font-size: 16px; }
+
+  /* ── Status pill ── */
+  .pill { display: inline-flex; align-items: center; gap: 5px; font-size: 12px; padding: 3px 10px; border-radius: 20px; }
+  .pill.idle   { background: var(--bg2); color: var(--text3); }
+  .pill.work   { background: var(--green-bg); color: var(--green-tx); }
+  .pill.break  { background: var(--amber-bg); color: var(--amber-tx); }
+  .pill.ended  { background: var(--blue-bg);  color: var(--blue-tx); }
+  .pill .dot   { width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+
+  /* ── Buttons ── */
+  .btn { display: flex; align-items: center; justify-content: center; gap: 7px; padding: 11px 14px; border-radius: var(--radius); border: 1px solid var(--border2); background: var(--bg); color: var(--text); font-size: 13.5px; font-family: inherit; cursor: pointer; text-align: center; line-height: 1.3; transition: background 0.12s, transform 0.1s; width: 100%; }
+  .btn:hover   { background: var(--bg2); }
+  .btn:active  { transform: scale(0.98); }
+  .btn:disabled { opacity: 0.35; cursor: not-allowed; pointer-events: none; }
+  .btn.green  { background: var(--green-bg); border-color: var(--green-bd); color: var(--green-tx); }
+  .btn.green:hover  { filter: brightness(0.95); }
+  .btn.amber  { background: var(--amber-bg); border-color: var(--amber-bd); color: var(--amber-tx); }
+  .btn.amber:hover  { filter: brightness(0.95); }
+  .btn.red    { background: var(--red-bg);   border-color: var(--red-bd);   color: var(--red-tx); }
+  .btn.red:hover    { filter: brightness(0.95); }
+  .btn.blue   { background: var(--blue-bg);  border-color: var(--blue-bd);  color: var(--blue-tx); }
+  .btn.blue:hover   { filter: brightness(0.95); }
+  .btn.confirm { background: var(--green-bg); border: 2px solid var(--green-bd); color: var(--green-tx); font-weight: 600; }
+  .btn.confirm:hover { filter: brightness(0.95); }
+  .btn.confirm.done { background: var(--bg2); border: 1px solid var(--border); color: var(--text3); font-weight: 400; pointer-events: none; }
+  .btn-grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+
+  /* ── Shift log ── */
+  .shift-log { border-radius: var(--radius); overflow: hidden; margin-top: 12px; border: 1px solid var(--border); }
+  .log-row { display: flex; justify-content: space-between; align-items: center; padding: 8px 12px; border-bottom: 1px solid var(--border); font-size: 13px; }
+  .log-row:last-child { border-bottom: none; }
+  .log-row.pending   { background: var(--bg2); }
+  .log-row.committed { background: var(--bg); }
+  .log-lbl { color: var(--text2); display: flex; align-items: center; gap: 6px; }
+  .log-val  { font-weight: 500; font-variant-numeric: tabular-nums; }
+  .log-val.green { color: var(--green-tx); }
+  .pdot { width: 6px; height: 6px; border-radius: 50%; background: #EF9F27; flex-shrink: 0; }
+  .cdot { width: 6px; height: 6px; border-radius: 50%; background: #639922; flex-shrink: 0; }
+  .log-state { font-size: 11px; display: flex; align-items: center; gap: 5px; margin-top: 6px; }
+  .log-state.pending   { color: var(--amber-tx); }
+  .log-state.committed { color: var(--green-tx); }
+
+  /* ── Divider ── */
+  .divider { border: none; border-top: 1px solid var(--border); margin: 12px 0; }
+
+  /* ── Views ── */
+  .view { display: none; }
+  .view.active { display: block; }
+
+  .panel-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; }
+  .panel-title  { font-size: 15px; font-weight: 600; }
+  .back-btn { font-size: 12px; color: var(--text3); cursor: pointer; display: flex; align-items: center; gap: 4px; background: none; border: none; font-family: inherit; padding: 4px 0; }
+  .back-btn:hover { color: var(--text2); }
+
+  /* ── Textarea ── */
+  textarea { width: 100%; min-height: 80px; padding: 10px; font-size: 14px; font-family: inherit; background: var(--bg2); border: 1px solid var(--border2); border-radius: var(--radius); color: var(--text); resize: vertical; }
+  textarea:focus { outline: none; border-color: var(--blue-bd); }
+  textarea:disabled { opacity: 0.5; }
+
+  /* ── Flag badge ── */
+  .flag { display: inline-flex; align-items: center; gap: 4px; font-size: 11px; padding: 2px 8px; border-radius: 20px; background: var(--amber-bg); color: var(--amber-tx); margin-top: 6px; }
+
+  /* ── Banner ── */
+  .banner { background: var(--green-bg); border: 1px solid var(--green-bd); border-radius: var(--radius); padding: 10px 12px; display: none; align-items: center; gap: 8px; font-size: 13px; color: var(--green-tx); margin-top: 8px; }
+  .banner.show { display: flex; }
+  .banner.error { background: var(--red-bg); border-color: var(--red-bd); color: var(--red-tx); }
+
+  /* ── Sync state ── */
+  .sync-badge { font-size: 11px; padding: 2px 8px; border-radius: 20px; margin-top: 6px; display: inline-flex; align-items: center; gap: 4px; }
+  .sync-badge.syncing { background: var(--amber-bg); color: var(--amber-tx); }
+  .sync-badge.synced  { background: var(--green-bg); color: var(--green-tx); }
+  .sync-badge.error   { background: var(--red-bg);   color: var(--red-tx); }
+
+  /* ── Roster ── */
+  .roster-main { width: 100%; border-radius: var(--radius-lg); border: 1px solid var(--border2); overflow: hidden; background: var(--bg2); aspect-ratio: 16/9; display: flex; flex-direction: column; align-items: center; justify-content: center; cursor: pointer; }
+  .roster-main img { width: 100%; height: 100%; object-fit: contain; }
+  .roster-mini-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 10px; }
+  .roster-mini { border-radius: var(--radius); border: 1px solid var(--border); overflow: hidden; background: var(--bg2); aspect-ratio: 16/9; display: flex; align-items: center; justify-content: center; cursor: pointer; }
+  .roster-mini img { width: 100%; height: 100%; object-fit: contain; }
+  .empty-slot { display: flex; flex-direction: column; align-items: center; gap: 6px; color: var(--text3); font-size: 12px; }
+  .empty-slot svg { width: 28px; height: 28px; stroke: currentColor; fill: none; }
+  .week-lbl { font-size: 10.5px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--text3); margin-bottom: 5px; }
+
+  /* ── Lightbox ── */
+  #view-lightbox img { width: 100%; border-radius: var(--radius); border: 1px solid var(--border); }
+
+  /* ── Upload slots ── */
+  .upload-slot { border: 1px dashed var(--border2); border-radius: var(--radius); padding: 14px; display: flex; align-items: center; gap: 12px; margin-bottom: 8px; cursor: pointer; background: var(--bg2); }
+  .upload-slot:hover { background: var(--bg); }
+  .slot-thumb { width: 56px; height: 36px; border-radius: 6px; overflow: hidden; background: var(--bg); border: 1px solid var(--border); flex-shrink: 0; display: flex; align-items: center; justify-content: center; color: var(--text3); }
+  .slot-thumb img { width: 100%; height: 100%; object-fit: cover; }
+  .slot-info { flex: 1; }
+  .slot-name { font-size: 13px; font-weight: 500; }
+  .slot-sub  { font-size: 11px; color: var(--text3); margin-top: 1px; }
+  .slot-action { font-size: 12px; color: var(--blue-tx); }
+
+  /* ── PIN pad ── */
+  .pin-dots { display: flex; gap: 10px; justify-content: center; margin: 16px 0 4px; }
+  .pin-dot  { width: 12px; height: 12px; border-radius: 50%; background: var(--bg2); border: 1px solid var(--border2); }
+  .pin-dot.on { background: var(--text); }
+  .pin-pad  { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 12px; }
+  .pin-key  { padding: 14px; font-size: 18px; font-weight: 500; font-family: inherit; border-radius: var(--radius); border: 1px solid var(--border2); background: var(--bg2); color: var(--text); cursor: pointer; text-align: center; }
+  .pin-key:hover { background: var(--bg); }
+  .pin-key.sm  { font-size: 13px; color: var(--text2); }
+  .pin-error { font-size: 12px; color: var(--red-tx); text-align: center; margin-top: 6px; min-height: 18px; }
+
+  /* ── Calendar ── */
+  .cal-nav { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
+  .cal-nav button { background: none; border: none; cursor: pointer; color: var(--text2); font-size: 18px; padding: 4px; display: flex; align-items: center; font-family: inherit; }
+  .cal-month-lbl { font-size: 13px; font-weight: 500; }
+  .cal-days-header { display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px; margin-bottom: 3px; }
+  .cal-dh { font-size: 10px; text-align: center; color: var(--text3); letter-spacing: 0.05em; padding: 2px 0; }
+  .cal-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 3px; margin: 4px 0 10px; }
+  .cal-cell { aspect-ratio: 1; display: flex; align-items: center; justify-content: center; font-size: 12px; border-radius: 6px; cursor: pointer; color: var(--text2); border: 1px solid transparent; }
+  .cal-cell:hover   { background: var(--bg2); }
+  .cal-cell.today   { border-color: var(--border2); color: var(--text); }
+  .cal-cell.other   { color: var(--text3); }
+  .cal-cell.sel     { background: var(--blue-bg); border-color: var(--blue-bd); color: var(--blue-tx); font-weight: 500; }
+</style>
+</head>
+<body>
+<div class="app">
+
+  <!-- ══ MAIN VIEW ══════════════════════════════ -->
+  <div id="view-main" class="view active">
+
+    <div class="top-bar">
+      <div class="logo">Staff Timebook</div>
+      <button class="roster-btn" onclick="show('view-roster')">
+        📅 View rosters
+      </button>
+    </div>
+
+    <div class="header">
+      <div class="time-display" id="clock">--:--</div>
+      <div class="date-display" id="dateline">--</div>
+    </div>
+
+    <!-- Staff select -->
+    <div class="card">
+      <div class="slabel" style="margin-bottom:8px">Who are you?</div>
+      <div class="sel-wrap">
+        <select id="staff-select">
+          <option value="">Select your name...</option>
+          <option>Alex Nguyen</option>
+          <option>Brianna Walsh</option>
+          <option>Carlos Reyes</option>
+          <option>Dana Okonkwo</option>
+          <option>Evan Marsh</option>
+          <option>Fiona Tran</option>
+          <option>George Liu</option>
+          <option>Hannah Patel</option>
+        </select>
+        <span class="chev">⌄</span>
+      </div>
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-top:12px;">
+        <div class="slabel" style="margin-bottom:0">Status</div>
+        <span class="pill idle" id="status-pill">
+          <span class="dot"></span><span id="status-text">Not clocked in</span>
+        </span>
+      </div>
+    </div>
+
+    <!-- Shift buttons -->
+    <div class="card">
+      <div class="slabel">Shift</div>
+      <div class="btn-grid2">
+        <button class="btn green" id="btn-start-shift" onclick="startShift()">▶ Start shift</button>
+        <button class="btn amber" id="btn-start-break" onclick="startBreak()" disabled>☕ Start break</button>
+        <button class="btn blue"  id="btn-end-break"   onclick="endBreak()"   disabled>▶ End break</button>
+        <button class="btn red"   id="btn-end-shift"   onclick="endShift()"   disabled>⏹ End shift</button>
+      </div>
+
+      <div id="shift-summary" style="display:none;">
+        <hr class="divider">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;">
+          <div class="slabel" style="margin-bottom:0">Your shift</div>
+          <div class="log-state pending" id="log-state"><span class="pdot"></span> Pending confirmation</div>
+        </div>
+        <div class="shift-log" id="shift-log"></div>
+        <div id="sync-badge-shift"></div>
+      </div>
+    </div>
+
+    <!-- Actions -->
+    <div class="card">
+      <div class="slabel">Actions</div>
+      <div style="display:flex;flex-direction:column;gap:8px;">
+        <button class="btn confirm" id="btn-confirm" onclick="confirmShift()" disabled>✓ Confirm shift</button>
+        <button class="btn" onclick="show('view-adjustment')">✎ Request adjustment</button>
+        <button class="btn" style="background:var(--bg2);color:var(--text2);" onclick="show('view-na')">📅 Notify N/A</button>
+      </div>
+      <div class="banner" id="confirm-banner">✓ Shift confirmed and submitted to the timesheet.</div>
+    </div>
+
+  </div><!-- /view-main -->
+
+
+  <!-- ══ ROSTER VIEW ════════════════════════════ -->
+  <div id="view-roster" class="view">
+    <div class="card">
+      <div class="panel-header">
+        <div class="panel-title">Rosters</div>
+        <button class="back-btn" onclick="show('view-main')">← Back</button>
+      </div>
+
+      <div class="week-lbl">This week</div>
+      <div class="roster-main" id="r0" onclick="openLightbox(0)">
+        <div class="empty-slot" id="r0-empty">
+          <svg viewBox="0 0 24 24" stroke-width="1.5"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/></svg>
+          No roster uploaded
+        </div>
+      </div>
+
+      <div class="roster-mini-grid">
+        <div>
+          <div class="week-lbl">Next week</div>
+          <div class="roster-mini" id="r1" onclick="openLightbox(1)">
+            <div class="empty-slot" id="r1-empty">
+              <svg viewBox="0 0 24 24" stroke-width="1.5"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18"/></svg>
+              Not yet posted
+            </div>
+          </div>
+        </div>
+        <div>
+          <div class="week-lbl">Week after</div>
+          <div class="roster-mini" id="r2" onclick="openLightbox(2)">
+            <div class="empty-slot" id="r2-empty">
+              <svg viewBox="0 0 24 24" stroke-width="1.5"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18"/></svg>
+              Not yet posted
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <hr class="divider" style="margin-top:16px;">
+      <div style="text-align:center;">
+        <button class="back-btn" style="display:inline-flex;margin:0 auto;" onclick="show('view-admin-gate')">
+          🔒 Manager upload
+        </button>
+      </div>
+    </div>
+  </div><!-- /view-roster -->
+
+
+  <!-- ══ LIGHTBOX ═══════════════════════════════ -->
+  <div id="view-lightbox" class="view">
+    <div class="card">
+      <div class="panel-header">
+        <div class="panel-title" id="lb-title">Roster</div>
+        <button class="back-btn" onclick="show('view-roster')">← Back</button>
+      </div>
+      <img id="lb-img" src="" alt="Roster image">
+    </div>
+  </div>
+
+
+  <!-- ══ ADMIN PIN ══════════════════════════════ -->
+  <div id="view-admin-gate" class="view">
+    <div class="card">
+      <div class="panel-header">
+        <div class="panel-title">Manager access</div>
+        <button class="back-btn" onclick="show('view-roster')">← Back</button>
+      </div>
+      <div style="text-align:center;font-size:13px;color:var(--text2);">Enter your PIN</div>
+      <div class="pin-dots" id="pin-dots">
+        <div class="pin-dot" id="pd0"></div><div class="pin-dot" id="pd1"></div>
+        <div class="pin-dot" id="pd2"></div><div class="pin-dot" id="pd3"></div>
+      </div>
+      <div class="pin-error" id="pin-error"></div>
+      <div class="pin-pad">
+        <button class="pin-key" onclick="pinKey('1')">1</button>
+        <button class="pin-key" onclick="pinKey('2')">2</button>
+        <button class="pin-key" onclick="pinKey('3')">3</button>
+        <button class="pin-key" onclick="pinKey('4')">4</button>
+        <button class="pin-key" onclick="pinKey('5')">5</button>
+        <button class="pin-key" onclick="pinKey('6')">6</button>
+        <button class="pin-key" onclick="pinKey('7')">7</button>
+        <button class="pin-key" onclick="pinKey('8')">8</button>
+        <button class="pin-key" onclick="pinKey('9')">9</button>
+        <button class="pin-key sm" onclick="pinDel()">⌫</button>
+        <button class="pin-key" onclick="pinKey('0')">0</button>
+        <button class="pin-key sm" onclick="pinClear()">Clear</button>
+      </div>
+    </div>
+  </div>
+
+
+  <!-- ══ ADMIN UPLOAD ═══════════════════════════ -->
+  <div id="view-admin-upload" class="view">
+    <div class="card">
+      <div class="panel-header">
+        <div class="panel-title">Upload rosters</div>
+        <button class="back-btn" onclick="show('view-roster');pinClear();">← Back</button>
+      </div>
+      <div class="slabel">Tap a slot to upload or replace</div>
+
+      <div class="upload-slot" onclick="triggerUpload(0)">
+        <div class="slot-thumb" id="th0">📷</div>
+        <div class="slot-info">
+          <div class="slot-name">This week</div>
+          <div class="slot-sub" id="th0-sub">No image uploaded</div>
+        </div>
+        <span class="slot-action">↑ Upload</span>
+      </div>
+
+      <div class="upload-slot" onclick="triggerUpload(1)">
+        <div class="slot-thumb" id="th1">📷</div>
+        <div class="slot-info">
+          <div class="slot-name">Next week</div>
+          <div class="slot-sub" id="th1-sub">No image uploaded</div>
+        </div>
+        <span class="slot-action">↑ Upload</span>
+      </div>
+
+      <div class="upload-slot" onclick="triggerUpload(2)">
+        <div class="slot-thumb" id="th2">📷</div>
+        <div class="slot-info">
+          <div class="slot-name">Week after</div>
+          <div class="slot-sub" id="th2-sub">No image uploaded</div>
+        </div>
+        <span class="slot-action">↑ Upload</span>
+      </div>
+
+      <input type="file" id="file-input" accept="image/*" style="display:none" onchange="handleUpload(event)">
+      <div class="banner" id="upload-banner">✓ Roster updated successfully.</div>
+    </div>
+  </div>
+
+
+  <!-- ══ ADJUSTMENT VIEW ════════════════════════ -->
+  <div id="view-adjustment" class="view">
+    <div class="card">
+      <div class="panel-header">
+        <div class="panel-title">Request adjustment</div>
+        <button class="back-btn" onclick="show('view-main')">← Back</button>
+      </div>
+      <div class="slabel">Describe what needs adjusting</div>
+      <textarea id="adj-text" placeholder="e.g. Clocked in 30 min late — traffic. Didn't clock back in after my 1pm break."></textarea>
+      <div class="flag">⚑ Flagged for manager review</div>
+      <div style="margin-top:12px;">
+        <button class="btn amber" onclick="submitAdjustment()">↑ Submit adjustment</button>
+      </div>
+      <div class="banner" id="adj-banner">✓ Adjustment logged — flagged for review.</div>
+      <div id="adj-sync"></div>
+    </div>
+  </div>
+
+
+  <!-- ══ N/A VIEW ═══════════════════════════════ -->
+  <div id="view-na" class="view">
+    <div class="card">
+      <div class="panel-header">
+        <div class="panel-title">Notify unavailability</div>
+        <button class="back-btn" onclick="show('view-main')">← Back</button>
+      </div>
+      <div class="slabel">Select date(s)</div>
+      <div class="cal-nav">
+        <button onclick="prevMonth()">‹</button>
+        <div class="cal-month-lbl" id="cal-lbl"></div>
+        <button onclick="nextMonth()">›</button>
+      </div>
+      <div class="cal-days-header">
+        <div class="cal-dh">Su</div><div class="cal-dh">Mo</div><div class="cal-dh">Tu</div>
+        <div class="cal-dh">We</div><div class="cal-dh">Th</div><div class="cal-dh">Fr</div>
+        <div class="cal-dh">Sa</div>
+      </div>
+      <div class="cal-grid" id="cal-grid"></div>
+
+      <div id="na-info" style="display:none;">
+        <div class="slabel">Selected: <span id="na-dates-lbl" style="text-transform:none;letter-spacing:0;color:var(--text);font-size:12px;font-weight:500;"></span></div>
+        <div class="slabel" style="margin-top:8px;margin-bottom:4px;">Note (optional)</div>
+        <textarea id="na-note" placeholder="e.g. Medical appointment, school commitment..." style="min-height:60px;"></textarea>
+        <div class="flag">⚑ Flagged for manager review</div>
+        <div style="margin-top:10px;">
+          <button class="btn blue" onclick="submitNA()">↑ Submit N/A notice</button>
+        </div>
+      </div>
+      <div class="banner" id="na-banner">✓ Unavailability logged — flagged for review.</div>
+      <div id="na-sync"></div>
+    </div>
+  </div>
+
+</div><!-- /app -->
+
+<script>
+// ── State ──────────────────────────────────────
+const S = {
+  shiftStarted: false, shiftEnded: false,
+  onBreak: false, confirmed: false,
+  ts: {}, totalBreakMs: 0, log: []
+};
+
+const rosterImgs  = [null, null, null];
+const rosterNames = ['This week', 'Next week', 'Week after'];
+let pinEntry = '', curUploadSlot = 0;
+let calYear, calMonth;
+const selDates = new Set();
+
+// ── Helpers ────────────────────────────────────
+function fmtTime(ms) {
+  return new Date(ms).toLocaleTimeString('en-AU', { hour:'2-digit', minute:'2-digit', hour12:true });
+}
+function fmtDur(ms) {
+  const m = Math.round(ms / 60000), h = Math.floor(m / 60), mins = m % 60;
+  return h > 0 ? `${h}h ${mins}m` : `${mins}m`;
+}
+function fmtDateStr(ms) {
+  return new Date(ms).toLocaleDateString('en-AU', { day:'2-digit', month:'2-digit', year:'numeric' });
+}
+function getStaff() {
+  const v = document.getElementById('staff-select').value;
+  if (!v) { alert('Please select your name first.'); return null; }
+  return v;
+}
+function setStatus(type, text) {
+  document.getElementById('status-pill').className = 'pill ' + type;
+  document.getElementById('status-text').textContent = text;
+}
+function show(id) {
+  document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+  if (id === 'view-na') renderCal();
+  if (id === 'view-admin-gate') { pinClear(); document.getElementById('pin-error').textContent = ''; }
+  if (id === 'view-admin-upload') refreshThumbs();
+}
+function updateBtns() {
+  document.getElementById('btn-start-shift').disabled = S.shiftStarted;
+  document.getElementById('btn-start-break').disabled = !S.shiftStarted || S.onBreak || S.shiftEnded;
+  document.getElementById('btn-end-break').disabled   = !S.onBreak;
+  document.getElementById('btn-end-shift').disabled   = !S.shiftStarted || S.onBreak || S.shiftEnded;
+  document.getElementById('btn-confirm').disabled     = !S.shiftEnded || S.confirmed;
+}
+
+// ── Clock ──────────────────────────────────────
+function tick() {
+  const n = new Date();
+  document.getElementById('clock').textContent = n.toLocaleTimeString('en-AU', { hour:'2-digit', minute:'2-digit', hour12:true });
+  document.getElementById('dateline').textContent = n.toLocaleDateString('en-AU', { weekday:'long', day:'numeric', month:'long', year:'numeric' });
+}
+tick(); setInterval(tick, 5000);
+
+// ── Shift actions ──────────────────────────────
+function startShift() {
+  if (!getStaff()) return;
+  S.ts.shiftStart = Date.now();
+  S.shiftStarted = true;
+  S.log = [{ lbl: 'Clocked in', val: fmtTime(S.ts.shiftStart) }];
+  setStatus('work', 'On shift');
+  document.getElementById('staff-select').disabled = true;
+  updateBtns();
+}
+function startBreak() {
+  S.ts.breakStart = Date.now();
+  S.onBreak = true;
+  S.log.push({ lbl: 'Break started', val: fmtTime(S.ts.breakStart) });
+  setStatus('break', 'On break');
+  updateBtns();
+}
+function endBreak() {
+  S.ts.breakEnd = Date.now();
+  const bd = S.ts.breakEnd - S.ts.breakStart;
+  S.totalBreakMs += bd;
+  S.onBreak = false;
+  S.log.push({ lbl: 'Break ended', val: fmtTime(S.ts.breakEnd) });
+  S.log.push({ lbl: 'Break duration', val: fmtDur(bd) });
+  setStatus('work', 'On shift');
+  updateBtns();
+}
+function endShift() {
+  S.ts.shiftEnd = Date.now();
+  S.shiftEnded = true;
+  const worked = (S.ts.shiftEnd - S.ts.shiftStart) - S.totalBreakMs;
+  S.log.push({ lbl: 'Clocked out', val: fmtTime(S.ts.shiftEnd) });
+  S.log.push({ lbl: 'Total worked', val: fmtDur(worked), green: true });
+  if (S.totalBreakMs > 0) S.log.push({ lbl: 'Total break', val: fmtDur(S.totalBreakMs) });
+  setStatus('ended', 'Shift ended');
+  renderLog(false);
+  document.getElementById('shift-summary').style.display = 'block';
+  updateBtns();
+}
+function renderLog(committed) {
+  document.getElementById('shift-log').innerHTML = S.log.map(r =>
+    `<div class="log-row ${committed ? 'committed' : 'pending'}">
+      <span class="log-lbl"><span class="${committed ? 'cdot' : 'pdot'}"></span>${r.lbl}</span>
+      <span class="log-val${r.green ? ' green' : ''}">${r.val}</span>
+    </div>`
+  ).join('');
+  const ind = document.getElementById('log-state');
+  if (committed) {
+    ind.className = 'log-state committed';
+    ind.innerHTML = '<span class="cdot"></span> Confirmed';
+  } else {
+    ind.className = 'log-state pending';
+    ind.innerHTML = '<span class="pdot"></span> Pending confirmation';
+  }
+}
+
+// ── Confirm → POST to Sheet ────────────────────
+function confirmShift() {
+  if (!S.shiftEnded) return;
+  const staff = document.getElementById('staff-select').value;
+  S.confirmed = true;
+  renderLog(true);
+  const btn = document.getElementById('btn-confirm');
+  btn.className = 'btn confirm done';
+  btn.textContent = '✓ Shift confirmed';
+  updateBtns();
+
+  const payload = {
+    type: 'shift',
+    staffName: staff,
+    submittedAt: new Date().toISOString(),
+    timestamps: {
+      shiftStart: new Date(S.ts.shiftStart).toISOString(),
+      breakStart: S.ts.breakStart ? new Date(S.ts.breakStart).toISOString() : null,
+      breakEnd:   S.ts.breakEnd   ? new Date(S.ts.breakEnd).toISOString()   : null,
+      shiftEnd:   new Date(S.ts.shiftEnd).toISOString(),
+    },
+    totalBreakMs: S.totalBreakMs,
+  };
+
+  setSyncBadge('sync-badge-shift', 'syncing', 'Saving to timesheet...');
+  postToSheet(payload)
+    .then(() => {
+      setSyncBadge('sync-badge-shift', 'synced', 'Saved to timesheet ✓');
+      showBanner('confirm-banner');
+    })
+    .catch(() => setSyncBadge('sync-badge-shift', 'error', 'Save failed — retry or note manually'));
+}
+
+// ── Adjustment ─────────────────────────────────
+function submitAdjustment() {
+  const staff = getStaff();
+  if (!staff) return;
+  const txt = document.getElementById('adj-text').value.trim();
+  if (!txt) { alert('Please describe the adjustment needed.'); return; }
+
+  document.getElementById('adj-text').disabled = true;
+  document.querySelector('#view-adjustment .btn.amber').disabled = true;
+  showBanner('adj-banner');
+
+  const payload = {
+    type: 'adjustment',
+    staffName: staff,
+    note: txt,
+    submittedAt: new Date().toISOString(),
+  };
+
+  setSyncBadge('adj-sync', 'syncing', 'Saving...');
+  postToSheet(payload)
+    .then(() => setSyncBadge('adj-sync', 'synced', 'Logged to timesheet ✓'))
+    .catch(() => setSyncBadge('adj-sync', 'error', 'Save failed — screenshot this as backup'));
+}
+
+// ── N/A ────────────────────────────────────────
+function submitNA() {
+  const staff = getStaff();
+  if (!staff) return;
+  if (selDates.size === 0) { alert('Please select at least one date.'); return; }
+
+  const dates = [...selDates].map(k => {
+    const [y, m, d] = k.split('-');
+    return new Date(+y, +m, +d).toLocaleDateString('en-AU', { day:'numeric', month:'short', year:'numeric' });
+  });
+
+  document.getElementById('na-note').disabled = true;
+  document.querySelector('#view-na .btn.blue').disabled = true;
+  showBanner('na-banner');
+
+  const payload = {
+    type: 'na',
+    staffName: staff,
+    dates: dates,
+    note: document.getElementById('na-note').value.trim(),
+    submittedAt: new Date().toISOString(),
+  };
+
+  setSyncBadge('na-sync', 'syncing', 'Saving...');
+  postToSheet(payload)
+    .then(() => setSyncBadge('na-sync', 'synced', 'Logged to timesheet ✓'))
+    .catch(() => setSyncBadge('na-sync', 'error', 'Save failed — screenshot this as backup'));
+}
+
+// ── API call ───────────────────────────────────
+function postToSheet(payload) {
+  return fetch(APPS_SCRIPT_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'text/plain' }, // Apps Script CORS quirk
+    body: JSON.stringify(payload),
+  })
+  .then(r => r.json())
+  .then(data => {
+    if (!data.success) throw new Error(data.error || 'Unknown error');
+    return data;
+  });
+}
+
+// ── UI helpers ─────────────────────────────────
+function showBanner(id) {
+  document.getElementById(id).classList.add('show');
+}
+function setSyncBadge(containerId, state, text) {
+  const el = document.getElementById(containerId);
+  if (!el) return;
+  el.innerHTML = `<div class="sync-badge ${state}">${text}</div>`;
+}
+
+// ── Roster ─────────────────────────────────────
+function refreshRosterView() {
+  rosterImgs.forEach((src, i) => {
+    const wrap  = document.getElementById('r' + i);
+    const empty = document.getElementById('r' + i + '-empty');
+    if (src) {
+      empty.style.display = 'none';
+      let img = wrap.querySelector('img');
+      if (!img) { img = document.createElement('img'); img.alt = rosterNames[i]; wrap.appendChild(img); }
+      img.src = src;
+    } else {
+      empty.style.display = 'flex';
+      const img = wrap.querySelector('img');
+      if (img) img.remove();
+    }
+  });
+}
+function openLightbox(i) {
+  if (!rosterImgs[i]) return;
+  document.getElementById('lb-title').textContent = rosterNames[i];
+  document.getElementById('lb-img').src = rosterImgs[i];
+  show('view-lightbox');
+}
+
+// ── Upload ─────────────────────────────────────
+function triggerUpload(slot) { curUploadSlot = slot; document.getElementById('file-input').click(); }
+function handleUpload(e) {
+  const file = e.target.files[0]; if (!file) return;
+  const reader = new FileReader();
+  reader.onload = ev => {
+    rosterImgs[curUploadSlot] = ev.target.result;
+    refreshRosterView();
+    refreshThumbs();
+    showBanner('upload-banner');
+    setTimeout(() => document.getElementById('upload-banner').classList.remove('show'), 3000);
+
+    // Log roster event to sheet
+    const slotLabel = rosterNames[curUploadSlot];
+    const now = new Date();
+    const weekLabel = 'W/C ' + now.toLocaleDateString('en-AU', { day:'numeric', month:'short', year:'numeric' });
+    postToSheet({
+      type: 'roster',
+      slot: slotLabel,
+      weekLabel: weekLabel,
+      filename: file.name,
+      uploadedAt: now.toISOString(),
+      uploadedBy: 'Manager',
+    }).catch(() => {}); // silent fail for roster events
+  };
+  reader.readAsDataURL(file);
+  e.target.value = '';
+}
+function refreshThumbs() {
+  rosterImgs.forEach((src, i) => {
+    const thumb = document.getElementById('th' + i);
+    const sub   = document.getElementById('th' + i + '-sub');
+    if (src) {
+      thumb.innerHTML = '';
+      const img = document.createElement('img'); img.src = src; img.alt = rosterNames[i];
+      thumb.appendChild(img);
+      sub.textContent = 'Tap to replace';
+    } else {
+      thumb.innerHTML = '📷';
+      sub.textContent = 'No image uploaded';
+    }
+  });
+}
+
+// ── PIN ────────────────────────────────────────
+function pinKey(k) {
+  if (pinEntry.length >= 4) return;
+  pinEntry += k; updatePinDots();
+  if (pinEntry.length === 4) setTimeout(checkPin, 120);
+}
+function pinDel()   { pinEntry = pinEntry.slice(0,-1); updatePinDots(); document.getElementById('pin-error').textContent = ''; }
+function pinClear() { pinEntry = ''; updatePinDots(); }
+function updatePinDots() {
+  for (let i = 0; i < 4; i++)
+    document.getElementById('pd' + i).className = 'pin-dot' + (i < pinEntry.length ? ' on' : '');
+}
+function checkPin() {
+  if (pinEntry === ADMIN_PIN) { pinClear(); show('view-admin-upload'); }
+  else { document.getElementById('pin-error').textContent = 'Incorrect PIN — try again'; pinClear(); }
+}
+
+// ── Calendar ───────────────────────────────────
+function initCal() { const n = new Date(); calYear = n.getFullYear(); calMonth = n.getMonth(); }
+function renderCal() {
+  if (!calYear) initCal();
+  const now = new Date();
+  document.getElementById('cal-lbl').textContent =
+    new Date(calYear, calMonth, 1).toLocaleDateString('en-AU', { month:'long', year:'numeric' });
+  const grid = document.getElementById('cal-grid'); grid.innerHTML = '';
+  const first = new Date(calYear, calMonth, 1).getDay();
+  const days  = new Date(calYear, calMonth + 1, 0).getDate();
+  const prevD = new Date(calYear, calMonth, 0).getDate();
+  for (let i = 0; i < first; i++) {
+    const el = document.createElement('div');
+    el.className = 'cal-cell other'; el.textContent = prevD - first + 1 + i; grid.appendChild(el);
+  }
+  for (let d = 1; d <= days; d++) {
+    const el  = document.createElement('div');
+    const key = `${calYear}-${calMonth}-${d}`;
+    const isT = d === now.getDate() && calMonth === now.getMonth() && calYear === now.getFullYear();
+    el.className = 'cal-cell' + (isT ? ' today' : '') + (selDates.has(key) ? ' sel' : '');
+    el.textContent = d;
+    el.onclick = () => toggleDate(key, el);
+    grid.appendChild(el);
+  }
+}
+function toggleDate(key, el) {
+  selDates.has(key) ? (selDates.delete(key), el.classList.remove('sel')) : (selDates.add(key), el.classList.add('sel'));
+  updateNAInfo();
+}
+function updateNAInfo() {
+  const info = document.getElementById('na-info');
+  if (selDates.size === 0) { info.style.display = 'none'; return; }
+  info.style.display = 'block';
+  document.getElementById('na-dates-lbl').textContent = [...selDates].map(k => {
+    const [y, m, d] = k.split('-');
+    return new Date(+y, +m, +d).toLocaleDateString('en-AU', { day:'numeric', month:'short' });
+  }).join(', ');
+}
+function prevMonth() { calMonth === 0 ? (calMonth=11,calYear--) : calMonth--; renderCal(); }
+function nextMonth() { calMonth === 11 ? (calMonth=0,calYear++) : calMonth++; renderCal(); }
+
+initCal();
+</script>
+</body>
+</html>
