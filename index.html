@@ -753,16 +753,13 @@ function fetchRosterURLs() {
   })
   .then(r=>r.json())
   .then(data=>{
-    if(!data.success || !data.urls) return;
+    if(!data.success || !data.images) return;
     rosterNames.forEach((name,i)=>{
-      const url=data.urls[name];
-      if(url){
-        rosterDriveUrls[name]=url;
-        // Load image from Drive into local display
-        const img=new Image();
-        img.crossOrigin='anonymous';
-        img.onload=()=>{ rosterImgs[i]=url; refreshRosterView(); refreshThumbs(); };
-        img.src=url;
+      const dataUrl=data.images[name];
+      if(dataUrl){
+        rosterImgs[i]=dataUrl;
+        refreshRosterView();
+        refreshThumbs();
       }
     });
   })
