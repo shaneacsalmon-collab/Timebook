@@ -650,7 +650,7 @@ function submitAdjustment() {
   showBanner('adj-banner');
   setSyncBadge('adj-sync','syncing','Saving...');
   postToSheet({type:'adjustment',staffName:staff,note:txt,submittedAt:new Date().toISOString()})
-  .then(()=>setSyncBadge('adj-sync','synced','Logged to timesheet ✓'))
+  .then(()=>{ setSyncBadge('adj-sync','synced','Logged to timesheet ✓'); setTimeout(()=>{ document.getElementById('adj-text').value=''; document.getElementById('adj-text').disabled=false; document.querySelector('#view-adjustment .btn.amber').disabled=false; document.getElementById('adj-banner').classList.remove('show'); document.getElementById('adj-sync').innerHTML=''; show('view-main'); }, 2000); })
   .catch(()=>setSyncBadge('adj-sync','error','Save failed — screenshot this as backup'));
 }
 
@@ -664,7 +664,7 @@ function submitNA() {
   showBanner('na-banner');
   setSyncBadge('na-sync','syncing','Saving...');
   postToSheet({type:'na',staffName:staff,dates,note:document.getElementById('na-note').value.trim(),submittedAt:new Date().toISOString()})
-  .then(()=>setSyncBadge('na-sync','synced','Logged to timesheet ✓'))
+  .then(()=>{ setSyncBadge('na-sync','synced','Logged to timesheet ✓'); setTimeout(()=>{ document.getElementById('na-note').value=''; document.getElementById('na-note').disabled=false; document.querySelector('#view-na .btn.blue').disabled=false; document.getElementById('na-banner').classList.remove('show'); document.getElementById('na-sync').innerHTML=''; selDates.clear(); show('view-main'); }, 2000); })
   .catch(()=>setSyncBadge('na-sync','error','Save failed — screenshot this as backup'));
 }
 
